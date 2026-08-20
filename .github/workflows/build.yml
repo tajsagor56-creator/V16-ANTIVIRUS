@@ -14,7 +14,7 @@ jobs:
     steps:
 
       # ==================================================
-      # 1. Checkout
+      # 1. Checkout repository
       # ==================================================
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
           java-version: "17"
 
       # ==================================================
-      # 4. Install Linux dependencies
+      # 4. Linux dependencies
       # ==================================================
       - name: Install system dependencies
         run: |
@@ -61,118 +61,7 @@ jobs:
             libssl-dev
 
       # ==================================================
-      # 5. Locate Android SDK
-      # ==================================================
-      - name: Configure Android SDK
-        shell: bash
-        run: |
-
-          SDK_PATH=""
-
-          if [ -d "$ANDROID_HOME" ]; then
-            SDK_PATH="$ANDROID_HOME"
-          elif [ -d "$ANDROID_SDK_ROOT" ]; then
-            SDK_PATH="$ANDROID_SDK_ROOT"
-          elif [ -d "$HOME/android-sdk" ]; then
-            SDK_PATH="$HOME/android-sdk"
-          elif [ -d "/usr/local/lib/android/sdk" ]; then
-            SDK_PATH="/usr/local/lib/android/sdk"
-          elif [ -d "/opt/android-sdk" ]; then
-            SDK_PATH="/opt/android-sdk"
-          fi
-
-          if [ -z "$SDK_PATH" ]; then
-            echo "ERROR: Android SDK was not found."
-            exit 1
-          fi
-
-          echo "Android SDK found at:"
-          echo "$SDK_PATH"
-
-          echo "ANDROID_HOME=$SDK_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_PATH" >> "$GITHUB_ENV"
-
-          echo "$SDK_PATH/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK_PATH/cmdline-tools/bin" >> "$GITHUB_PATH"
-          echo "$SDK_PATH/tools/bin" >> "$GITHUB_PATH"
-          echo "$SDK_PATH/platform-tools" >> "$GITHUB_PATH"
-
-      # ==================================================
-      # 6. Locate sdkmanager
-      # ==================================================
-      - name: Locate sdkmanager
-        shell: bash
-        run: |
-
-          SDKMANAGER=""
-
-          if command -v sdkmanager >/dev/null 2>&1; then
-            SDKMANAGER="$(command -v sdkmanager)"
-          elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          elif [ -f "$ANDROID_HOME/cmdline-tools/bin/sdkmanager" ]; then
-            SDKMANAGER="$ANDROID_HOME/cmdline-tools/bin/sdkmanager"
-          elif [ -f "$ANDROID_HOME/tools/bin/sdkmanager" ]; then
-            SDKMANAGER="$ANDROID_HOME/tools/bin/sdkmanager"
-          fi
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager was not found."
-            echo "Android SDK: $ANDROID_HOME"
-            find "$ANDROID_HOME" -name sdkmanager -type f 2>/dev/null || true
-            exit 1
-          fi
-
-          echo "sdkmanager found:"
-          echo "$SDKMANAGER"
-
-          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
-
-      # ==================================================
-      # 7. Accept Android licenses
-      # ==================================================
-      - name: Accept Android SDK licenses
-        shell: bash
-        run: |
-          yes | "$SDKMANAGER" --licenses || true
-
-      # ==================================================
-      # 8. Install Android SDK components
-      # ==================================================
-      - name: Install Android SDK components
-        shell: bash
-        run: |
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-      # ==================================================
-      # 9. Verify AIDL
-      # ==================================================
-      - name: Verify Android Build Tools
-        shell: bash
-        run: |
-
-          echo "Android SDK:"
-          echo "$ANDROID_HOME"
-
-          echo ""
-          echo "Build Tools:"
-          ls -la "$ANDROID_HOME/build-tools"
-
-          echo ""
-          echo "AIDL:"
-          ls -la "$ANDROID_HOME/build-tools/35.0.0/aidl"
-
-          test -x "$ANDROID_HOME/build-tools/35.0.0/aidl"
-
-          echo ""
-          echo "AIDL is available."
-
-      # ==================================================
-      # 10. Install Python build tools
+      # 5. Install Buildozer
       # ==================================================
       - name: Install Buildozer
         run: |
@@ -181,15 +70,18 @@ jobs:
           python -m pip install buildozer cython
 
       # ==================================================
-      # 11. Verify project
+      # 6. Verify project
       # ==================================================
       - name: Verify project files
+        shell: bash
         run: |
 
-          echo "=============================="
-          echo "PROJECT FILES"
-          echo "=============================="
+          echo "======================================"
+          echo "V16 ANTIVIRUS PROJECT"
+          echo "======================================"
 
+          echo ""
+          echo "Project files:"
           find . -maxdepth 3 -type f | sort
 
           echo ""
@@ -205,15 +97,19 @@ jobs:
           buildozer --version
 
           echo ""
-          echo "Buildozer spec:"
+          echo "Checking buildozer.spec..."
           test -f buildozer.spec
 
+          echo "buildozer.spec OK"
+
           echo ""
-          echo "Main Python file:"
-          test -f V16Antivirus.py
+          echo "Checking main.py..."
+          test -f main.py
+
+          echo "main.py OK"
 
       # ==================================================
-      # 12. Build APK
+      # 7. Build Android APK
       # ==================================================
       - name: Build Android APK
         shell: bash
@@ -222,13 +118,15 @@ jobs:
           yes | buildozer android debug
 
       # ==================================================
-      # 13. Find APK
+      # 8. Find APK
       # ==================================================
       - name: Find APK
         shell: bash
         run: |
 
-          echo "Generated APK files:"
+          echo "======================================"
+          echo "GENERATED APK"
+          echo "======================================"
 
           find bin -type f -name "*.apk" -print
 
@@ -239,13 +137,14 @@ jobs:
             exit 1
           fi
 
+          echo ""
           echo "APK found:"
           ls -lh "$APK"
 
       # ==================================================
-      # 14. Prepare release APK
+      # 9. Prepare final APK
       # ==================================================
-      - name: Prepare release
+      - name: Prepare APK
         shell: bash
         run: |
 
@@ -255,11 +154,12 @@ jobs:
 
           cp "$APK" "release/V16-Antivirus-Pro.apk"
 
+          echo ""
           echo "Final APK:"
-          ls -lh "release/V16-Antivirus-Pro.apk"
+          ls -lh release/V16-Antivirus-Pro.apk
 
       # ==================================================
-      # 15. Upload APK
+      # 10. Upload APK
       # ==================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
