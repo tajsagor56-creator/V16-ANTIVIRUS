@@ -20,28 +20,28 @@ jobs:
       # ==========================================
       # 1. Checkout
       # ==========================================
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
       # ==========================================
       # 2. Python 3.11
       # ==========================================
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.9"
 
       # ==========================================
       # 3. Java 17
       # ==========================================
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       # ==========================================
-      # 4. Linux Dependencies
+      # 4. Linux dependencies
       # ==========================================
       - name: Install Linux dependencies
         run: |
@@ -67,4 +67,88 @@ jobs:
             ccache
 
       # ==========================================
-      #
+      # 5. Android SDK
+      # ==========================================
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      # ==========================================
+      # 6. Android packages
+      # ==========================================
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;35.0.0" \
+            "platforms;android-35"
+
+      # ==========================================
+      # 7. Python build tools
+      # ==========================================
+      - name: Install Python build tools
+        run: |
+          python --version
+          python -m pip install --upgrade pip setuptools wheel
+
+          pip install \
+            "buildozer==1.5.0" \
+            "cython==0.29.36"
+
+      # ==========================================
+      # 8. Configure Buildozer
+      # ==========================================
+      - name: Configure Buildozer
+        run: |
+          sed -i \
+            's/^android.accept_sdk_license.*/android.accept_sdk_license = True/' \
+            buildozer.spec || true
+
+          if ! grep -q "^android.accept_sdk_license" buildozer.spec; then
+            echo "android.accept_sdk_license = True" >> buildozer.spec
+          fi
+
+          echo "========== BUILD ENVIRONMENT =========="
+          python --version
+          pip --version
+          buildozer --version
+          java -version
+          echo "======================================="
+
+      # ==========================================
+      # 9. Clean old Buildozer cache
+      # ==========================================
+      - name: Clean Buildozer
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      # ==========================================
+      # 10. Build APK
+      # ==========================================
+      - name: Build V16 APK
+        env:
+          P4A_RELEASE: "2024.01.21"
+        run: |
+          buildozer android debug log_level=2
+
+      # ==========================================
+      # 11. Verify APK
+      # ==========================================
+      - name: Verify APK
+        run: |
+          echo "APK files:"
+          find bin -type f -name "*.apk" -print
+
+          test -n "$(find bin -type f -name '*.apk' -print -quit)"
+
+      # ==========================================
+      # 12. Upload APK
+      # ==========================================
+      - name: Upload V16 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: V16-Antivirus-APK
+          path: bin/*.apk
+          if-no-files-found: error
