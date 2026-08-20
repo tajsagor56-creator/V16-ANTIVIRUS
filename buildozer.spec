@@ -6,7 +6,6 @@ package.domain = org.kingtaj
 
 source.dir = .
 source.include_exts = py,json,png,jpg,jpeg,kv,atlas
-source.main.py
 
 version = 16.2
 
