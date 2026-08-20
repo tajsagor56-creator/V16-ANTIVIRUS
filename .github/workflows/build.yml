@@ -1,4 +1,4 @@
-name: Build V16 Antivirus APK
+name: V16 Antivirus APK Build
 
 on:
   workflow_dispatch:
@@ -6,103 +6,159 @@ on:
     branches:
       - main
 
-concurrency:
-  group: v16-antivirus-apk
-  cancel-in-progress: true
-
 jobs:
   build:
-    name: Build V16 APK
+    name: Build V16 Antivirus APK
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
 
     steps:
-      # --------------------------------------------------
-      # 1. Source code
-      # --------------------------------------------------
-      - name: Checkout V16 Antivirus
+
+      # ==========================================
+      # 1. Checkout
+      # ==========================================
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --------------------------------------------------
+      # ==========================================
       # 2. Python
-      # --------------------------------------------------
-      - name: Setup Python 3.11
+      # ==========================================
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # --------------------------------------------------
+      # ==========================================
       # 3. Java 17
-      # --------------------------------------------------
-      - name: Setup Java 17
+      # ==========================================
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      # --------------------------------------------------
-      # 4. Install Buildozer
-      # --------------------------------------------------
-      - name: Install Buildozer and Cython
+      # ==========================================
+      # 4. Install system dependencies
+      # ==========================================
+      - name: Install system packages
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer
-          pip install "cython==0.29.36"
+          sudo apt-get update
 
-      # --------------------------------------------------
-      # 5. Check project files
-      # --------------------------------------------------
-      - name: Check V16 project
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            cmake \
+            libffi-dev \
+            libssl-dev
+
+      # ==========================================
+      # 5. Accept Android SDK licenses
+      # ==========================================
+      - name: Accept Android SDK licenses
         run: |
-          echo "========== PROJECT FILES =========="
-          ls -la
-          echo "========== MAIN.PY =========="
-          test -f main.py
-          echo "main.py found"
-          echo "========== BUILDOZER.SPEC =========="
-          test -f buildozer.spec
-          echo "buildozer.spec found"
+          yes | sdkmanager --licenses || true
 
-      # --------------------------------------------------
-      # 6. Force SDK license acceptance
-      # --------------------------------------------------
-      - name: Configure Android SDK license
+      # ==========================================
+      # 6. Install required Android SDK packages
+      # ==========================================
+      - name: Install Android SDK packages
         run: |
-          if grep -q "^android.accept_sdk_license" buildozer.spec; then
-            sed -i \
-              's/^android.accept_sdk_license.*/android.accept_sdk_license = True/' \
-              buildozer.spec
-          else
-            printf '\nandroid.accept_sdk_license = True\n' >> buildozer.spec
-          fi
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
-          echo "SDK license setting:"
-          grep "android.accept_sdk_license" buildozer.spec
-
-      # --------------------------------------------------
-      # 7. Build V16 APK
-      # --------------------------------------------------
-      - name: Build V16 Antivirus Debug APK
-        env:
-          BUILDOZER_WARN_ON_ROOT: "1"
+      # ==========================================
+      # 7. Verify Build Tools
+      # ==========================================
+      - name: Verify Android SDK
         run: |
-          buildozer -v android debug
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-      # --------------------------------------------------
-      # 8. Show generated APK
-      # --------------------------------------------------
+          ls -la "$ANDROID_HOME/build-tools"
+
+          test -f "$ANDROID_HOME/build-tools/35.0.0/aidl"
+
+          echo "AIDL found successfully."
+
+      # ==========================================
+      # 8. Python tools
+      # ==========================================
+      - name: Install Python build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade setuptools wheel
+          python -m pip install buildozer cython
+
+      # ==========================================
+      # 9. Show project
+      # ==========================================
+      - name: Check project
+        run: |
+          echo "Project:"
+          find . -maxdepth 3 -type f | sort
+
+          echo ""
+          echo "Python:"
+          python --version
+
+          echo ""
+          echo "Buildozer:"
+          buildozer --version
+
+      # ==========================================
+      # 10. Build APK
+      # ==========================================
+      - name: Build Android APK
+        run: |
+          yes | buildozer android debug
+
+      # ==========================================
+      # 11. Find APK
+      # ==========================================
       - name: Find APK
         run: |
-          echo "========== APK FILES =========="
-          find bin -maxdepth 1 -type f -name "*.apk" -print
+          echo "APK files:"
+          find bin -type f -name "*.apk" -print
 
-      # --------------------------------------------------
-      # 9. Upload APK
-      # --------------------------------------------------
-      - name: Upload V16 Antivirus APK
+          APK=$(find bin -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
+          echo "APK found:"
+          ls -lh "$APK"
+
+      # ==========================================
+      # 12. Prepare release
+      # ==========================================
+      - name: Prepare APK
+        run: |
+          mkdir -p release
+
+          APK=$(find bin -type f -name "*.apk" | head -n 1)
+
+          cp "$APK" "release/V16-Antivirus-Pro.apk"
+
+          ls -lh release/V16-Antivirus-Pro.apk
+
+      # ==========================================
+      # 13. Upload APK
+      # ==========================================
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: V16-Antivirus-APK
-          path: bin/*.apk
+          name: V16-Antivirus-Pro
+          path: release/V16-Antivirus-Pro.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
