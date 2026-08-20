@@ -25,7 +25,7 @@ jobs:
     steps:
 
       # ==========================================
-      # 1. Checkout
+      # 1. Checkout source
       # ==========================================
 
       - name: Checkout source
@@ -38,7 +38,6 @@ jobs:
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
-
         with:
           python-version: "3.11.9"
 
@@ -49,14 +48,13 @@ jobs:
 
       - name: Setup Java
         uses: actions/setup-java@v4
-
         with:
           distribution: temurin
           java-version: "17"
 
 
       # ==========================================
-      # 4. Install Linux Dependencies
+      # 4. Linux dependencies
       # ==========================================
 
       - name: Install Linux dependencies
@@ -93,7 +91,7 @@ jobs:
 
 
       # ==========================================
-      # 6. Install Android SDK Packages
+      # 6. Install Android SDK
       # ==========================================
 
       - name: Install Android SDK packages
@@ -108,10 +106,10 @@ jobs:
 
 
       # ==========================================
-      # 7. Install Build Tools
+      # 7. Install Buildozer
       # ==========================================
 
-      - name: Install Python build tools
+      - name: Install Buildozer
         run: |
 
           python --version
@@ -127,52 +125,46 @@ jobs:
 
 
       # ==========================================
-      # 8. Show Environment
+      # 8. Verify configuration
       # ==========================================
 
-      - name: Show build environment
+      - name: Verify configuration
         run: |
 
           echo "=========================================="
-          echo "V16 ANTIVIRUS BUILD ENVIRONMENT"
+          echo "PYTHON"
           echo "=========================================="
 
           python --version
 
-          pip --version
+          echo "=========================================="
+          echo "BUILDOZER"
+          echo "=========================================="
 
           buildozer --version
 
-          java -version
-
-          echo "ANDROID_HOME=$ANDROID_HOME"
-
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
+          echo "=========================================="
+          echo "JAVA"
           echo "=========================================="
 
+          java -version
 
-      # ==========================================
-      # 9. Verify buildozer.spec
-      # ==========================================
-
-      - name: Verify Buildozer configuration
-        run: |
-
-          echo "========== buildozer.spec =========="
+          echo "=========================================="
+          echo "BUILDOZER SPEC"
+          echo "=========================================="
 
           cat buildozer.spec
 
-          echo "===================================="
+          echo "=========================================="
 
           test -f buildozer.spec
 
 
       # ==========================================
-      # 10. Clean Buildozer Cache
+      # 9. Clean old files
       # ==========================================
 
-      - name: Clean Buildozer
+      - name: Clean Buildozer cache
         run: |
 
           rm -rf .buildozer
@@ -181,31 +173,25 @@ jobs:
 
 
       # ==========================================
-      # 11. Build APK
+      # 10. Build APK
       # ==========================================
 
       - name: Build V16 APK
-        env:
-
-          P4A_URL: "https://github.com/kivy/python-for-android.git"
-
-          P4A_COMMIT: "957a3e5"
-
         run: |
 
           buildozer -v android debug
 
 
       # ==========================================
-      # 12. Find APK
+      # 11. Locate APK
       # ==========================================
 
-      - name: Find generated APK
+      - name: Locate APK
         run: |
 
           echo "=========================================="
-
-          echo "Generated APK files:"
+          echo "GENERATED APK"
+          echo "=========================================="
 
           find . -type f -name "*.apk" -print
 
@@ -213,10 +199,10 @@ jobs:
 
 
       # ==========================================
-      # 13. Verify APK
+      # 12. Verify APK
       # ==========================================
 
-      - name: Verify APK exists
+      - name: Verify APK
         run: |
 
           APK=$(find bin -type f -name "*.apk" -print -quit)
@@ -234,10 +220,133 @@ jobs:
 
 
       # ==========================================
-      # 14. Upload APK
+      # 13. Start Android Emulator
+      # ==========================================
+
+      - name: Start Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
+
+        with:
+
+          api-level: 35
+
+          target: google_apis
+
+          arch: x86_64
+
+          profile: pixel_2
+
+          cores: 2
+
+          ram-size: 2048M
+
+          heap-size: 512M
+
+          disk-size: 4096M
+
+          force-avd-creation: true
+
+          emulator-options: >
+            -no-window
+            -no-audio
+            -no-boot-anim
+            -no-snapshot
+            -gpu swiftshader_indirect
+
+          disable-animations: true
+
+          script: |
+
+            echo "=========================================="
+            echo "ANDROID EMULATOR TEST"
+            echo "=========================================="
+
+            adb wait-for-device
+
+            adb shell getprop ro.build.version.sdk
+
+            echo "=========================================="
+            echo "INSTALLING APK"
+            echo "=========================================="
+
+            APK=$(find bin -type f -name "*.apk" -print -quit)
+
+            echo "APK:"
+            echo "$APK"
+
+            adb install -r "$APK"
+
+            echo "=========================================="
+            echo "CLEARING LOGCAT"
+            echo "=========================================="
+
+            adb logcat -c
+
+            echo "=========================================="
+            echo "STARTING V16 ANTIVIRUS"
+            echo "=========================================="
+
+            adb shell monkey \
+              -p org.kingtaj.v16antivirus \
+              1
+
+            echo "=========================================="
+            echo "WAITING FOR APP"
+            echo "=========================================="
+
+            sleep 15
+
+            echo "=========================================="
+            echo "APP PROCESS"
+            echo "=========================================="
+
+            adb shell pidof org.kingtaj.v16antivirus || true
+
+            echo "=========================================="
+            echo "CRASH LOG"
+            echo "=========================================="
+
+            adb logcat -d > emulator-logcat.txt
+
+            grep -iE \
+              "FATAL EXCEPTION|AndroidRuntime|python|kivy|v16antivirus|Traceback|ImportError|ModuleNotFoundError|Unable to start activity" \
+              emulator-logcat.txt \
+              || true
+
+            echo "=========================================="
+            echo "LAST LOGCAT"
+            echo "=========================================="
+
+            tail -n 300 emulator-logcat.txt
+
+            echo "=========================================="
+
+
+      # ==========================================
+      # 14. Upload crash log
+      # ==========================================
+
+      - name: Upload emulator crash logs
+        if: always()
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: V16-Android-Crash-Logs
+
+          path: |
+            emulator-logcat.txt
+
+          if-no-files-found: warn
+
+
+      # ==========================================
+      # 15. Upload APK
       # ==========================================
 
       - name: Upload V16 Antivirus APK
+        if: always()
         uses: actions/upload-artifact@v4
 
         with:
