@@ -51,6 +51,7 @@ jobs:
             git \
             zip \
             unzip \
+            wget \
             autoconf \
             automake \
             libtool \
@@ -63,7 +64,7 @@ jobs:
             libssl-dev
 
       # ==========================================
-      # 5. Python Build Tools
+      # 5. Install Buildozer
       # ==========================================
       - name: Install Buildozer
         run: |
@@ -72,27 +73,54 @@ jobs:
           pip install cython==0.29.36
 
       # ==========================================
-      # 6. Configure SDK Environment
+      # 6. Install Android SDK Command Line Tools
       # ==========================================
-      - name: Configure Android SDK
+      - name: Install Android SDK
         run: |
-          echo "ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+          SDK="$HOME/.buildozer/android/platform/android-sdk"
 
-          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/licenses"
+          mkdir -p "$SDK"
+
+          cd /tmp
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+            -O commandlinetools.zip
+
+          unzip -q commandlinetools.zip
+
+          mkdir -p "$SDK/cmdline-tools"
+
+          rm -rf "$SDK/cmdline-tools/latest"
+
+          mv cmdline-tools "$SDK/cmdline-tools/latest"
+
+          mkdir -p "$SDK/tools"
+
+          ln -sfn \
+            "$SDK/cmdline-tools/latest/bin" \
+            "$SDK/tools/bin"
+
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/tools/bin" >> "$GITHUB_PATH"
+
+          echo "Checking sdkmanager..."
+
+          "$SDK/tools/bin/sdkmanager" --version
 
       # ==========================================
-      # 7. Pre-accept Android SDK Licenses
+      # 7. Accept Android SDK Licenses
       # ==========================================
-      - name: Accept Android SDK licenses
+      - name: Accept Android SDK Licenses
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
           mkdir -p "$SDK/licenses"
 
-          yes | sdkmanager --licenses || true
-
-          mkdir -p "$SDK/licenses"
+          yes | "$SDK/tools/bin/sdkmanager" --licenses || true
 
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" \
             > "$SDK/licenses/android-sdk-license"
