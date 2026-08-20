@@ -1,73 +1,37 @@
 [app]
 
-# ==========================================
-# V16 ANTIVIRUS
-# ==========================================
-
-title = V16 ANTIVIRUS
-
+title = V16 Antivirus Pro
 package.name = v16antivirus
 package.domain = org.kingtaj
 
 source.dir = .
-
 source.include_exts = py,json,png,jpg,jpeg,kv,atlas
+source.main = V16Antivirus.py
 
-version = 16.3
+version = 16.2
+
+orientation = portrait
+fullscreen = 0
 
 requirements = python3,kivy,plyer
 
-orientation = portrait
-
-fullscreen = 0
-
-
-# ==========================================
-# Android Configuration
-# ==========================================
-
-android.api = 35
-
-android.minapi = 23
-
-android.archs = arm64-v8a
-
-
-# ==========================================
-# Android Permissions
-# ==========================================
-
 android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,POST_NOTIFICATIONS
 
+android.api = 35
+android.minapi = 23
 
-# ==========================================
-# Android App Options
-# ==========================================
-
-android.allow_backup = True
+android.archs = arm64-v8a,armeabi-v7a
 
 android.private_storage = True
+android.allow_backup = False
 
-android.accept_sdk_license = True
+android.uses_cleartext_connection = False
 
+presplash.filename = %(source.dir)s/presplash.png
+icon.filename = %(source.dir)s/icon.png
 
-# ==========================================
-# Python-for-Android
-# ==========================================
-
-p4a.url = https://github.com/kivy/python-for-android.git
-
-p4a.branch = master
-
-p4a.commit = 957a3e5
-
-
-# ==========================================
-# Buildozer
-# ==========================================
 
 [buildozer]
 
 log_level = 2
-
-warn_on_root = 0
+warn_on_root = 1
