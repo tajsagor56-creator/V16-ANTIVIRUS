@@ -52,6 +52,17 @@ android.accept_sdk_license = True
 
 
 # ==========================================
+# Python-for-Android
+# ==========================================
+
+p4a.url = https://github.com/kivy/python-for-android.git
+
+p4a.branch = master
+
+p4a.commit = 957a3e5
+
+
+# ==========================================
 # Buildozer
 # ==========================================
 
