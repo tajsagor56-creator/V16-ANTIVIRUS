@@ -14,7 +14,7 @@ jobs:
     steps:
 
       # ==================================================
-      # 1. Checkout repository
+      # 1. Checkout
       # ==================================================
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -99,26 +99,32 @@ jobs:
           echo ""
           echo "Checking buildozer.spec..."
           test -f buildozer.spec
-
           echo "buildozer.spec OK"
 
           echo ""
           echo "Checking main.py..."
           test -f main.py
-
           echo "main.py OK"
 
       # ==================================================
-      # 7. Build Android APK
+      # 7. Clean old Buildozer files
+      # ==================================================
+      - name: Clean Buildozer
+        shell: bash
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      # ==================================================
+      # 8. Build APK
       # ==================================================
       - name: Build Android APK
         shell: bash
         run: |
-
-          yes | buildozer android debug
+          buildozer -v android debug
 
       # ==================================================
-      # 8. Find APK
+      # 9. Find APK
       # ==================================================
       - name: Find APK
         shell: bash
@@ -142,7 +148,7 @@ jobs:
           ls -lh "$APK"
 
       # ==================================================
-      # 9. Prepare final APK
+      # 10. Prepare final APK
       # ==================================================
       - name: Prepare APK
         shell: bash
@@ -159,7 +165,7 @@ jobs:
           ls -lh release/V16-Antivirus-Pro.apk
 
       # ==================================================
-      # 10. Upload APK
+      # 11. Upload APK
       # ==================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
