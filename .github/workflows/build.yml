@@ -18,13 +18,13 @@ jobs:
     steps:
 
       # ==========================================
-      # 1. Checkout
+      # 1. Checkout source
       # ==========================================
       - name: Checkout source
         uses: actions/checkout@v4
 
       # ==========================================
-      # 2. Python
+      # 2. Python 3.11
       # ==========================================
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -88,9 +88,10 @@ jobs:
       # ==========================================
       # 7. Python build tools
       # ==========================================
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer
         run: |
           python --version
+
           python -m pip install --upgrade pip
           python -m pip install setuptools wheel
 
@@ -99,47 +100,45 @@ jobs:
             "cython==0.29.36"
 
       # ==========================================
-      # 8. Install pinned python-for-android
+      # 8. Install EXACT python-for-android release
       # ==========================================
       - name: Install pinned python-for-android
         run: |
           rm -rf "$HOME/python-for-android"
 
           git clone \
+            --depth 1 \
+            --branch v2024.01.21 \
             https://github.com/kivy/python-for-android.git \
             "$HOME/python-for-android"
 
           cd "$HOME/python-for-android"
 
-          # Stable known commit.
-          git checkout 4f7e7f2
+          echo "========== P4A COMMIT =========="
+          git rev-parse HEAD
+          echo "Expected release commit:"
+          echo "957a3e5"
+          echo "================================"
 
           python -m pip install .
 
-          echo "========== P4A VERSION =========="
-          python -m pythonforandroid.toolchain --version || true
-          echo "================================="
+          python -c "import pythonforandroid; print('P4A installed successfully')"
 
       # ==========================================
-      # 9. Configure environment
+      # 9. Android environment
       # ==========================================
       - name: Configure Android environment
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-
           echo "JAVA_HOME=$JAVA_HOME"
 
           java -version
           python --version
           buildozer --version
 
-          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-
-          yes | sdkmanager --licenses || true
-
       # ==========================================
-      # 10. Clean old Buildozer files
+      # 10. Clean old Buildozer cache
       # ==========================================
       - name: Clean Buildozer cache
         run: |
@@ -149,23 +148,27 @@ jobs:
           mkdir -p bin
 
       # ==========================================
-      # 11. Check buildozer.spec
+      # 11. Show buildozer.spec
       # ==========================================
       - name: Check Buildozer configuration
         run: |
-          echo "========== buildozer.spec =========="
+          echo "=========================================="
+          echo "BUILDZOZER SPEC"
+          echo "=========================================="
+
           cat buildozer.spec
-          echo "===================================="
+
+          echo "=========================================="
 
       # ==========================================
       # 12. Build APK
       # ==========================================
       - name: Build V16 Antivirus APK
         env:
-          P4A_HOME: /home/runner/python-for-android
-          P4A_PATH: /home/runner/python-for-android
           ANDROIDAPI: "35"
           ANDROIDMINAPI: "23"
+          P4A_HOME: "/home/runner/python-for-android"
+          P4A_PATH: "/home/runner/python-for-android"
         run: |
           buildozer android debug log_level=2
 
@@ -174,22 +177,26 @@ jobs:
       # ==========================================
       - name: Verify APK
         run: |
-          echo "========== APK RESULT =========="
+          echo "=========================================="
+          echo "APK FILES"
+          echo "=========================================="
 
           find bin \
             -type f \
             -name "*.apk" \
             -print
 
-          APK_COUNT=$(find bin -type f -name "*.apk" | wc -l)
+          APK=$(find bin -type f -name "*.apk" -print -quit)
 
-          if [ "$APK_COUNT" -eq 0 ]; then
+          if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated."
             exit 1
           fi
 
-          echo "APK generated successfully."
-          echo "================================"
+          echo "=========================================="
+          echo "APK BUILD SUCCESS"
+          echo "=========================================="
+          echo "APK: $APK"
 
       # ==========================================
       # 14. Upload APK
