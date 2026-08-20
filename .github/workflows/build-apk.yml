@@ -16,22 +16,37 @@ jobs:
     timeout-minutes: 60
 
     steps:
+
+      # ==========================================
+      # 1. Repository Checkout
+      # ==========================================
       - name: Checkout source
         uses: actions/checkout@v4
 
+      # ==========================================
+      # 2. Python 3.11
+      # ==========================================
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # ==========================================
+      # 3. Java 17
+      # ==========================================
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # ==========================================
+      # 4. Linux Dependencies
+      # ==========================================
       - name: Install Buildozer dependencies
         run: |
+          sudo apt-get update
+
           sudo apt-get install -y \
             git \
             zip \
@@ -43,27 +58,61 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            cmake
+            cmake \
+            libffi-dev \
+            libssl-dev
 
+      # ==========================================
+      # 5. Python Build Tools
+      # ==========================================
       - name: Install Buildozer
         run: |
-          python -m pip install --upgrade pip
-          pip install buildozer cython==0.29.36
+          python -m pip install --upgrade pip setuptools wheel
+          pip install buildozer
+          pip install cython==0.29.36
 
-      - name: Enable Android SDK license
+      # ==========================================
+      # 6. Configure SDK Environment
+      # ==========================================
+      - name: Configure Android SDK
         run: |
-          if grep -q "android.accept_sdk_license" buildozer.spec; then
-            sed -i 's/^#\?android.accept_sdk_license.*/android.accept_sdk_license = True/' buildozer.spec
-          else
-            printf '\nandroid.accept_sdk_license = True\n' >> buildozer.spec
-          fi
+          echo "ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
 
-          grep "android.accept_sdk_license" buildozer.spec
+          mkdir -p "$HOME/.buildozer/android/platform/android-sdk/licenses"
 
+      # ==========================================
+      # 7. Pre-accept Android SDK Licenses
+      # ==========================================
+      - name: Accept Android SDK licenses
+        run: |
+          SDK="$HOME/.buildozer/android/platform/android-sdk"
+
+          mkdir -p "$SDK/licenses"
+
+          yes | sdkmanager --licenses || true
+
+          mkdir -p "$SDK/licenses"
+
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" \
+            > "$SDK/licenses/android-sdk-license"
+
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" \
+            >> "$SDK/licenses/android-sdk-license"
+
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
+            >> "$SDK/licenses/android-sdk-license"
+
+      # ==========================================
+      # 8. Build V16 APK
+      # ==========================================
       - name: Build V16 APK
         run: |
           buildozer android debug
 
+      # ==========================================
+      # 9. Upload APK
+      # ==========================================
       - name: Upload V16 APK
         uses: actions/upload-artifact@v4
         with:
