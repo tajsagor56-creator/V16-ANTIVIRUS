@@ -6,7 +6,7 @@ package.domain = org.kingtaj
 
 source.dir = .
 source.include_exts = py,json,png,jpg,jpeg,kv,atlas
-source.main = V16Antivirus.py
+source.main.py
 
 version = 16.2
 
