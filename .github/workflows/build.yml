@@ -17,23 +17,36 @@ jobs:
 
     steps:
 
+      # ==========================================
+      # 1. Checkout
+      # ==========================================
       - name: Checkout source
         uses: actions/checkout@v4
 
+      # ==========================================
+      # 2. Python
+      # ==========================================
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # ==========================================
+      # 3. Java 17
+      # ==========================================
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Linux dependencies
+      # ==========================================
+      # 4. Linux Dependencies
+      # ==========================================
+      - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             git \
             zip \
@@ -52,140 +65,151 @@ jobs:
             cmake \
             libltdl-dev
 
-      - name: Install Buildozer
+      # ==========================================
+      # 5. Android SDK
+      # ==========================================
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      # ==========================================
+      # 6. Install Android SDK Packages
+      # ==========================================
+      - name: Install Android packages
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer
-          pip install cython==0.29.36
+          yes | sdkmanager --licenses || true
 
-      - name: Configure Android SDK
-        run: |
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
-
-          mkdir -p "$SDK/cmdline-tools"
-          mkdir -p "$SDK/tools/bin"
-
-      - name: Install Android Command Line Tools
-        run: |
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          cd /tmp
-
-          wget -q \
-            https://dl.google.com/android/repository/commandlinetools-linux-14742923_latest.zip \
-            -O android-cmdline-tools.zip
-
-          rm -rf cmdline-tools
-
-          unzip -q android-cmdline-tools.zip
-
-          rm -rf "$SDK/cmdline-tools/latest"
-
-          mv cmdline-tools "$SDK/cmdline-tools/latest"
-
-          ln -sf \
-            "$SDK/cmdline-tools/latest/bin/sdkmanager" \
-            "$SDK/tools/bin/sdkmanager"
-
-          ln -sf \
-            "$SDK/cmdline-tools/latest/bin/avdmanager" \
-            "$SDK/tools/bin/avdmanager"
-
-          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK/tools/bin" >> "$GITHUB_PATH"
-
-          "$SDK/tools/bin/sdkmanager" --version
-
-      - name: Accept Android SDK licenses
-        run: |
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          mkdir -p "$SDK/licenses"
-
-          yes | "$SDK/tools/bin/sdkmanager" --licenses || true
-
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" \
-            > "$SDK/licenses/android-sdk-license"
-
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" \
-            >> "$SDK/licenses/android-sdk-license"
-
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
-            >> "$SDK/licenses/android-sdk-license"
-
-      - name: Install Android SDK packages
-        run: |
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
-
-          "$SDK/tools/bin/sdkmanager" \
+          sdkmanager \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      - name: Verify Android Build Tools
+      # ==========================================
+      # 7. Install Buildozer
+      # ==========================================
+      - name: Install Buildozer
         run: |
-          SDK="$HOME/.buildozer/android/platform/android-sdk"
+          python -m pip install --upgrade pip setuptools wheel
 
-          echo "Installed Build Tools:"
-          ls -la "$SDK/build-tools"
+          pip install buildozer
 
-          echo "Searching for AIDL:"
+          pip install cython==0.29.36
 
-          find "$SDK/build-tools" \
-            -type f \
-            -name "aidl" \
-            -print
-
-          if [ ! -f "$SDK/build-tools/35.0.0/aidl" ]; then
-            echo "ERROR: AIDL not found"
-            exit 1
-          fi
-
-          chmod +x "$SDK/build-tools/35.0.0/aidl"
-
-          echo "AIDL successfully installed."
-
-      - name: Verify V16 configuration
+      # ==========================================
+      # 8. Configure Android Environment
+      # ==========================================
+      - name: Configure Android environment
         run: |
-          echo "===== buildozer.spec ====="
-          cat buildozer.spec
+          echo "ANDROIDAPI=35" >> "$GITHUB_ENV"
+          echo "ANDROIDMINAPI=24" >> "$GITHUB_ENV"
 
-          echo "===== Android configuration ====="
+          echo "ANDROID_API=35" >> "$GITHUB_ENV"
+          echo "ANDROID_MINAPI=24" >> "$GITHUB_ENV"
 
-          grep -E \
-            "android.api|android.minapi|android.archs|requirements" \
-            buildozer.spec
-
-      - name: Configure Buildozer license
+      # ==========================================
+      # 9. Configure Buildozer
+      # ==========================================
+      - name: Configure Buildozer
         run: |
+
           if grep -q "^android.accept_sdk_license" buildozer.spec; then
+
             sed -i \
               's/^android.accept_sdk_license.*/android.accept_sdk_license = True/' \
               buildozer.spec
+
           else
+
             echo "android.accept_sdk_license = True" >> buildozer.spec
+
           fi
 
+          echo ""
+          echo "===== BUILD CONFIGURATION ====="
+
+          grep -E \
+            "android.api|android.minapi|android.archs|requirements|android.accept_sdk_license" \
+            buildozer.spec
+
+      # ==========================================
+      # 10. Clean OLD Buildozer Files
+      # ==========================================
       - name: Clean Buildozer cache
         run: |
+
+          echo "Cleaning old Buildozer cache..."
+
           rm -rf .buildozer
+
           rm -rf bin
 
+          rm -rf "$HOME/.buildozer/android/platform/build-arm64-v8a"
+
+          rm -rf "$HOME/.buildozer/android/platform/python-for-android"
+
+          echo "Cleaning completed."
+
+      # ==========================================
+      # 11. Verify Android SDK
+      # ==========================================
+      - name: Verify Android SDK
+        run: |
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          echo ""
+          echo "Android platforms:"
+          ls -la "$ANDROID_HOME/platforms"
+
+          echo ""
+          echo "Android build-tools:"
+          ls -la "$ANDROID_HOME/build-tools"
+
+          echo ""
+          echo "AIDL:"
+          ls -la "$ANDROID_HOME/build-tools/35.0.0/aidl"
+
+          echo ""
+          echo "AIDL version:"
+          "$ANDROID_HOME/build-tools/35.0.0/aidl" --version
+
+      # ==========================================
+      # 12. Build APK
+      # ==========================================
       - name: Build V16 APK
         run: |
+
+          echo "======================================"
+          echo "Starting V16 Antivirus APK build"
+          echo "======================================"
+
+          echo "ANDROIDAPI=$ANDROIDAPI"
+          echo "ANDROIDMINAPI=$ANDROIDMINAPI"
+
           buildozer android debug
 
+      # ==========================================
+      # 13. Check APK
+      # ==========================================
       - name: Check APK
         run: |
-          echo "Generated APK files:"
+
+          echo "======================================"
+          echo "Generated APK:"
+          echo "======================================"
+
           ls -lah bin/
 
+          find bin -type f -name "*.apk" -print
+
+      # ==========================================
+      # 14. Upload APK
+      # ==========================================
       - name: Upload V16 APK
         uses: actions/upload-artifact@v4
+
         with:
           name: V16-Antivirus-APK
+
           path: bin/*.apk
+
           if-no-files-found: error
