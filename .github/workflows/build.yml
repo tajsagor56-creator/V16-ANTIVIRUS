@@ -13,18 +13,18 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
 
       # ==========================================
       # 1. Checkout
       # ==========================================
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
       # ==========================================
-      # 2. Python 3.11
+      # 2. Python
       # ==========================================
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -32,7 +32,7 @@ jobs:
           python-version: "3.11.9"
 
       # ==========================================
-      # 3. Java 17
+      # 3. Java
       # ==========================================
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -73,7 +73,7 @@ jobs:
         uses: android-actions/setup-android@v4
 
       # ==========================================
-      # 6. Android packages
+      # 6. Android SDK packages
       # ==========================================
       - name: Install Android SDK packages
         run: |
@@ -85,11 +85,10 @@ jobs:
             "platforms;android-35"
 
       # ==========================================
-      # 7. Python build tools
+      # 7. Install Buildozer
       # ==========================================
-      - name: Install Python build tools
+      - name: Install Buildozer
         run: |
-          python --version
           python -m pip install --upgrade pip setuptools wheel
 
           pip install \
@@ -97,54 +96,80 @@ jobs:
             "cython==0.29.36"
 
       # ==========================================
-      # 8. Configure Buildozer
+      # 8. Pin python-for-android
+      # ==========================================
+      - name: Install pinned python-for-android
+        run: |
+          rm -rf "$HOME/python-for-android"
+
+          git clone \
+            --depth 1 \
+            --branch 2024.01.21 \
+            https://github.com/kivy/python-for-android.git \
+            "$HOME/python-for-android"
+
+          cd "$HOME/python-for-android"
+
+          python -m pip install .
+
+          python -m pip show python-for-android
+
+      # ==========================================
+      # 9. Configure Buildozer
       # ==========================================
       - name: Configure Buildozer
         run: |
-          sed -i \
-            's/^android.accept_sdk_license.*/android.accept_sdk_license = True/' \
-            buildozer.spec || true
-
-          if ! grep -q "^android.accept_sdk_license" buildozer.spec; then
+          if grep -q "^android.accept_sdk_license" buildozer.spec; then
+            sed -i \
+              's/^android.accept_sdk_license.*/android.accept_sdk_license = True/' \
+              buildozer.spec
+          else
             echo "android.accept_sdk_license = True" >> buildozer.spec
           fi
 
-          echo "========== BUILD ENVIRONMENT =========="
+          echo "======================================"
+          echo "Python:"
           python --version
-          pip --version
+
+          echo "======================================"
+          echo "Buildozer:"
           buildozer --version
+
+          echo "======================================"
+          echo "Python-for-Android:"
+          python -m pythonforandroid.toolchain --version || true
+
+          echo "======================================"
           java -version
-          echo "======================================="
 
       # ==========================================
-      # 9. Clean old Buildozer cache
+      # 10. Clean previous Buildozer files
       # ==========================================
-      - name: Clean Buildozer
+      - name: Clean Build
         run: |
           rm -rf .buildozer
           rm -rf bin
 
       # ==========================================
-      # 10. Build APK
+      # 11. Build APK
       # ==========================================
       - name: Build V16 APK
-        env:
-          P4A_RELEASE: "2024.01.21"
         run: |
           buildozer android debug log_level=2
 
       # ==========================================
-      # 11. Verify APK
+      # 12. Verify APK
       # ==========================================
       - name: Verify APK
         run: |
-          echo "APK files:"
-          find bin -type f -name "*.apk" -print
+          echo "Searching for APK..."
+
+          find . -type f -name "*.apk" -print
 
           test -n "$(find bin -type f -name '*.apk' -print -quit)"
 
       # ==========================================
-      # 12. Upload APK
+      # 13. Upload APK
       # ==========================================
       - name: Upload V16 APK
         uses: actions/upload-artifact@v4
