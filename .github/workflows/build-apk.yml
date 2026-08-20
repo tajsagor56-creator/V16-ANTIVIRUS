@@ -32,7 +32,7 @@ jobs:
           python-version: "3.11"
 
       # ==========================================
-      # 3. Java 17
+      # 3. Java
       # ==========================================
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -41,7 +41,7 @@ jobs:
           java-version: "17"
 
       # ==========================================
-      # 4. Linux dependencies
+      # 4. Linux Dependencies
       # ==========================================
       - name: Install dependencies
         run: |
@@ -66,32 +66,23 @@ jobs:
             libltdl-dev
 
       # ==========================================
-      # 5. Setup Android SDK
+      # 5. Android SDK
       # ==========================================
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: >-
-            platform-tools
-            build-tools;35.0.0
-            platforms;android-35
 
       # ==========================================
-      # 6. Show Android SDK
+      # 6. Install Android packages
       # ==========================================
-      - name: Check Android SDK
+      - name: Install Android packages
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          sdkmanager --update || true
+          yes | sdkmanager --licenses || true
 
-          echo "SDK Manager:"
-          sdkmanager --version
-
-          echo "ADB:"
-          adb version
-
-          echo "Build Tools:"
-          ls -la "$ANDROID_HOME/build-tools"
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;35.0.0" \
+            "platforms;android-35"
 
       # ==========================================
       # 7. Install Buildozer
@@ -105,7 +96,7 @@ jobs:
           pip install cython==0.29.36
 
       # ==========================================
-      # 8. Configure buildozer.spec
+      # 8. Buildozer configuration
       # ==========================================
       - name: Configure Buildozer
         run: |
@@ -117,28 +108,36 @@ jobs:
             echo "android.accept_sdk_license = True" >> buildozer.spec
           fi
 
-          echo "Buildozer SDK configuration:"
+          echo "Buildozer configuration:"
           grep "android.accept_sdk_license" buildozer.spec || true
 
       # ==========================================
-      # 9. Clean old Buildozer SDK
+      # 9. Prepare Buildozer SDK
       # ==========================================
-      - name: Prepare Buildozer Android SDK
+      - name: Prepare Buildozer SDK
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
 
-          mkdir -p "$SDK"
-
-          # Use the GitHub runner Android SDK
           rm -rf "$SDK"
 
-          ln -s "$ANDROID_HOME" "$SDK"
+          mkdir -p "$SDK/tools"
 
-          echo "Buildozer SDK:"
-          ls -la "$HOME/.buildozer/android/platform"
+          # Copy GitHub Android SDK
+          cp -a "$ANDROID_HOME"/. "$SDK"/
 
-          echo "SDK link:"
-          readlink -f "$SDK"
+          # Buildozer expects old sdkmanager location
+          mkdir -p "$SDK/tools/bin"
+
+          ln -sf \
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "$SDK/tools/bin/sdkmanager"
+
+          # Also expose sdkmanager through PATH
+          echo "$SDK/tools/bin" >> "$GITHUB_PATH"
+
+          echo "Checking Buildozer sdkmanager..."
+
+          "$SDK/tools/bin/sdkmanager" --version
 
       # ==========================================
       # 10. Build APK
