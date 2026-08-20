@@ -2,49 +2,66 @@ name: Build V16 Antivirus APK
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
 
+
 concurrency:
-  group: v16-apk-build
+  group: v16-antivirus-build
   cancel-in-progress: true
 
+
 jobs:
+
   build:
+
     runs-on: ubuntu-22.04
+
     timeout-minutes: 120
+
 
     steps:
 
       # ==========================================
-      # 1. Checkout source
+      # 1. Checkout
       # ==========================================
+
       - name: Checkout source
         uses: actions/checkout@v4
 
+
       # ==========================================
-      # 2. Python 3.11
+      # 2. Setup Python
       # ==========================================
-      - name: Setup Python
+
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
+
         with:
           python-version: "3.11.9"
 
+
       # ==========================================
-      # 3. Java 17
+      # 3. Setup Java 17
       # ==========================================
+
       - name: Setup Java
         uses: actions/setup-java@v4
+
         with:
           distribution: temurin
           java-version: "17"
 
+
       # ==========================================
-      # 4. Linux dependencies
+      # 4. Install Linux Dependencies
       # ==========================================
+
       - name: Install Linux dependencies
         run: |
+
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -64,20 +81,24 @@ jobs:
             libssl-dev \
             cmake \
             libltdl-dev \
-            ccache \
-            build-essential
+            ccache
+
 
       # ==========================================
-      # 5. Android SDK
+      # 5. Setup Android SDK
       # ==========================================
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
+
       # ==========================================
-      # 6. Android SDK packages
+      # 6. Install Android SDK Packages
       # ==========================================
+
       - name: Install Android SDK packages
         run: |
+
           yes | sdkmanager --licenses || true
 
           sdkmanager \
@@ -85,125 +106,144 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
+
       # ==========================================
-      # 7. Python build tools
+      # 7. Install Build Tools
       # ==========================================
-      - name: Install Buildozer
+
+      - name: Install Python build tools
         run: |
+
           python --version
 
-          python -m pip install --upgrade pip
-          python -m pip install setuptools wheel
+          python -m pip install --upgrade \
+            pip \
+            setuptools \
+            wheel
 
           python -m pip install \
             "buildozer==1.5.0" \
             "cython==0.29.36"
 
+
       # ==========================================
-      # 8. Install EXACT python-for-android release
+      # 8. Show Environment
       # ==========================================
-      - name: Install pinned python-for-android
+
+      - name: Show build environment
         run: |
-          rm -rf "$HOME/python-for-android"
 
-          git clone \
-            --depth 1 \
-            --branch v2024.01.21 \
-            https://github.com/kivy/python-for-android.git \
-            "$HOME/python-for-android"
+          echo "=========================================="
+          echo "V16 ANTIVIRUS BUILD ENVIRONMENT"
+          echo "=========================================="
 
-          cd "$HOME/python-for-android"
-
-          echo "========== P4A COMMIT =========="
-          git rev-parse HEAD
-          echo "Expected release commit:"
-          echo "957a3e5"
-          echo "================================"
-
-          python -m pip install .
-
-          python -c "import pythonforandroid; print('P4A installed successfully')"
-
-      # ==========================================
-      # 9. Android environment
-      # ==========================================
-      - name: Configure Android environment
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "JAVA_HOME=$JAVA_HOME"
-
-          java -version
           python --version
+
+          pip --version
+
           buildozer --version
 
-      # ==========================================
-      # 10. Clean old Buildozer cache
-      # ==========================================
-      - name: Clean Buildozer cache
-        run: |
-          rm -rf .buildozer
-          rm -rf bin
+          java -version
 
-          mkdir -p bin
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          echo "=========================================="
+
 
       # ==========================================
-      # 11. Show buildozer.spec
+      # 9. Verify buildozer.spec
       # ==========================================
-      - name: Check Buildozer configuration
+
+      - name: Verify Buildozer configuration
         run: |
-          echo "=========================================="
-          echo "BUILDZOZER SPEC"
-          echo "=========================================="
+
+          echo "========== buildozer.spec =========="
 
           cat buildozer.spec
 
-          echo "=========================================="
+          echo "===================================="
+
+          test -f buildozer.spec
+
 
       # ==========================================
-      # 12. Build APK
+      # 10. Clean Buildozer Cache
       # ==========================================
-      - name: Build V16 Antivirus APK
-        env:
-          ANDROIDAPI: "35"
-          ANDROIDMINAPI: "23"
-          P4A_HOME: "/home/runner/python-for-android"
-          P4A_PATH: "/home/runner/python-for-android"
+
+      - name: Clean Buildozer
         run: |
-          buildozer android debug log_level=2
+
+          rm -rf .buildozer
+
+          rm -rf bin
+
+
+      # ==========================================
+      # 11. Build APK
+      # ==========================================
+
+      - name: Build V16 APK
+        env:
+
+          P4A_URL: "https://github.com/kivy/python-for-android.git"
+
+          P4A_COMMIT: "957a3e5"
+
+        run: |
+
+          buildozer -v android debug
+
+
+      # ==========================================
+      # 12. Find APK
+      # ==========================================
+
+      - name: Find generated APK
+        run: |
+
+          echo "=========================================="
+
+          echo "Generated APK files:"
+
+          find . -type f -name "*.apk" -print
+
+          echo "=========================================="
+
 
       # ==========================================
       # 13. Verify APK
       # ==========================================
-      - name: Verify APK
-        run: |
-          echo "=========================================="
-          echo "APK FILES"
-          echo "=========================================="
 
-          find bin \
-            -type f \
-            -name "*.apk" \
-            -print
+      - name: Verify APK exists
+        run: |
 
           APK=$(find bin -type f -name "*.apk" -print -quit)
 
           if [ -z "$APK" ]; then
+
             echo "ERROR: APK was not generated."
+
             exit 1
+
           fi
 
-          echo "=========================================="
-          echo "APK BUILD SUCCESS"
-          echo "=========================================="
-          echo "APK: $APK"
+          echo "APK FOUND:"
+          echo "$APK"
+
 
       # ==========================================
       # 14. Upload APK
       # ==========================================
+
       - name: Upload V16 Antivirus APK
         uses: actions/upload-artifact@v4
+
         with:
+
           name: V16-Antivirus-APK
+
           path: bin/*.apk
+
           if-no-files-found: error
